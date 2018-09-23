@@ -5,6 +5,7 @@ A script based on TensorFlow for the Maximum Likelihood optimization of the anal
 Contributors:
 
 Denise Kilburg, dmkilburg@gmail.com
+
 Emilio Gallicchio, egallicchio@brooklyn.cuny.edu
 
 References:
