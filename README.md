@@ -10,5 +10,5 @@ Emilio Gallicchio, egallicchio@brooklyn.cuny.edu
 
 References:
 
-1. Emilio Gallicchio. Alchemical Response Parameters from an Analytical Model of Molecular Binding (2017). [arXiv:1707.00769](https://arxiv.org/abs/1707.00769)
-2. Denise Kilburg and Emilio Gallicchio. Analytic Model of the Free Energy of Alchemical Molecular Binding (2018). Submitted.
+1. Denise Kilburg and Emilio Gallicchio. Analytical Model of the Free Energy of Alchemical Molecular Binding. J. Chem. Theory Comput. 14, 6183–6196 (2018) doi:10.1021/acs.jctc.8b00967 [pdf of submitted manuscript](https://www.dropbox.com/s/td1mlagbbg0siqp/analytical_theory_ms4.pdf?dl=0)
+
