@@ -7,63 +7,105 @@ import pickle
 from numpy.polynomial.hermite import hermgauss
 import tensorflow as tf
 from femodel_tf_optimizer import femodel_tf_optimizer
+import os, sys
+import argparse
 
-
-restart = False
-production = True
-testarea = not production
-
-
-class femodel_tf_optimizer_t4l(femodel_tf_optimizer):
+class femodel(femodel_tf_optimizer):
     """
     Class to optimize analytic binding free energy model with Tensorflow
     """
     # rational soft-core
+    kBT = 1.986e-3*300.0
     alphasc = tf.constant(1./16.,dtype=tf.float64)
-    umaxsc = 50.0/(1.986e-3*300.0)
+    umaxsc = tf.constant(50.0/kBT, dtype=tf.float64)
     ausc = alphasc*umaxsc
+    ubcore = tf.constant(0.0/kBT, dtype=tf.float64)
     def inverse_soft_core_function(self,usc):
-        return tf.where(usc <= 0.,
+        return tf.where(usc <= femodel.ubcore,
                         usc,
-                        0.5*femodel_tf_optimizer_t4l.ausc*(-1.0 + tf.math.sqrt(2.*tf.math.pow((femodel_tf_optimizer_t4l.umaxsc+usc)/(femodel_tf_optimizer_t4l.umaxsc-usc),1./femodel_tf_optimizer_t4l.alphasc)-1.0)))
+                        femodel.ubcore + 0.5*femodel.ausc*(-1.0 + tf.math.sqrt(2.*tf.math.pow((femodel.umaxsc+(usc-femodel.ubcore))/(femodel.umaxsc-(usc-femodel.ubcore)),1./femodel.alphasc)-1.0)))
     
     def der_soft_core_function(self,u):# dusc/du
-        self.yscaX = tf.math.pow(1. + 2.*u/femodel_tf_optimizer_t4l.ausc + 2.*tf.math.pow(u/femodel_tf_optimizer_t4l.ausc,2), femodel_tf_optimizer_t4l.alphasc)
-        return tf.where(u <= 0.,
+        self.yscaX = tf.math.pow(1. + 2.*(u-femodel.ubcore)/femodel.ausc + 2.*tf.math.pow((u-femodel.ubcore)/femodel.ausc,2), femodel.alphasc)
+        return tf.where(u <= femodel.ubcore,
                         tf.ones([tf.size(u)], dtype=tf.float64),
-                        4.*femodel_tf_optimizer_t4l.ausc*(femodel_tf_optimizer_t4l.ausc + 2.*u)*self.yscaX/((femodel_tf_optimizer_t4l.ausc*femodel_tf_optimizer_t4l.ausc + 2.*femodel_tf_optimizer_t4l.ausc*u+2.*u*u)*tf.math.pow(1.+self.yscaX,2)))
+                        4.*femodel.ausc*(femodel.ausc + 2.*(u-femodel.ubcore))*self.yscaX/\
+                        ((2.*tf.math.pow(femodel.ubcore,2) + tf.math.pow(femodel.ausc,2) + 2.*femodel.ausc*u+2.*u*u-2.*femodel.ubcore*(femodel.ausc+2.*u))*tf.math.pow(1.+self.yscaX,2)) )
 
+    def alchemical_potential_x(self, lmbds, xscbind):
+        return tf.math.log(1. + tf.math.exp(- (xscbind[:,None]-lmbds['u0'][None,:]) * lmbds['alpha'][None,:])) * ((lmbds['Lambda2'][None,:] - lmbds['Lambda1'][None,:])/(lmbds['alpha'][None,:]+self.eps)) + xscbind[:,None] * lmbds['Lambda2'][None,:] + lmbds['w0'][None,:]
+    
+    def alchemical_potential(self, lmbds, uscbind):
+        # self.eps is there to cover the case lambda1 = lambda2 and alpha = 0 in which case we have a linear alchemical potential
+        return ((lmbds['Lambda2'] - lmbds['Lambda1'])/(lmbds['alpha']+self.eps))*tf.math.log(1. + tf.math.exp(-lmbds['alpha']*(uscbind-lmbds['u0']))) + lmbds['Lambda2']*uscbind + lmbds['w0']
+
+
+    
 if __name__ == '__main__':
 
-    basename = "t4l-3iodotoluene-linear-b-ratsc-a16"
-    datafile = "data/" + basename + "/repl.cycle.totE.potE.temp.lambda.ebind.lambda1.lambda2.alpha.u0.w0.dat"
-    sdm_data = pd.read_csv(datafile, delim_whitespace=True, 
-                           header=None,names=["replica","cycle","totE",
-                                              "potE","temp","Lambda","ebind",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-o", "--optimize", action="store_true", default=0,
+                        help="Optimize parameters. Otherwise plot only.")
+    parser.add_argument("-c", "--ncycles", type=int, default=100,
+                        help="Number of optimization cycles")
+    parser.add_argument("-n", "--nsteps", type=int, default=10,
+                        help="Number of optimization steps in each cycle")
+    parser.add_argument("-r", "--restart", action="store_true", default=0,
+                        help="Restart optimization from the parameters saved in the pickle restart file")
+    parser.add_argument("-b", "--basename",
+                        help="Basename of the optimization job. Defaults to basename of this script.")
+    parser.add_argument("-d", "--datafile", default="repl.cycle.potE.temp.lambda.ebind.lambda1.lambda2.alpha.u0.w0.dat",
+                        help="Data file")
+    
+    parser.add_argument("-l", "--plambda", type=float, default=0.0,
+                        help="Value of lambda at which to plot the distributions")
+    args = parser.parse_args()
+    
+    restart = args.restart
+    production = args.optimize
+    testarea = not production
+
+    if args.basename:
+        basename = args.basename
+    else:
+        basename = os.path.basename(os.path.splitext(sys.argv[0])[0])
+        
+    datafile = args.datafile
+    ncycles = args.ncycles
+    nsteps = args.nsteps
+    tlambda = args.plambda
+    
+    sdm_data_raw = pd.read_csv(datafile, delim_whitespace=True, 
+                           header=None,names=["replica","cycle","potE",
+                                              "temp","Lambda","ebind",
                                               "Lambda1", "Lambda2", "alpha", "u0", "w0" ])
+#    sdm_data = sdm_data_raw[sdm_data_raw['Lambda'] > 0.075 ]
+#    sdm_data = sdm_data_raw[sdm_data_raw['cycle'] % 4 == 0 ]
+    sdm_data = sdm_data_raw
+    
     temperature = 300.0
     kT = 1.986e-3*temperature # [kcal/mol]
     beta = 1./kT
 
     nmodes = 3
-    
+
     reference_params = {}        
-    reference_params['ub'] = [  -11.0*beta, -4.00*beta, 100.0*beta ]
-    reference_params['sb'] = [   1.95*beta, 2.80*beta, 10.*beta ]
-    reference_params['pb'] = [ 1.e-5, 1.e-6, 0. ]
-    reference_params['elj'] = [ 20.*beta, 20.*beta, 20.*beta ]
-    reference_params['uce'] = [ 0., 0., 0. ]                 
-    reference_params['nl']  = [ 5.5, 5.5, 8.0 ]
-    reference_params['wg'] = [ 7.5e-3, 0.1, 1.0 ]
+    reference_params['ub'] = [  -15.35*beta, -10.7*beta, 13.7*beta ]
+    reference_params['sb'] = [   3.24*beta, 3.22*beta, 3.0*beta ]
+    reference_params['pb'] = [   9.31e-8,    6.13e-8, 1.e-20 ]
+    reference_params['elj'] = [ 4.93*beta, 7.91*beta, 18.5*beta ]
+    reference_params['uce'] = [ 2.52/4.93, 15.1/7.91, 72.0/18.5 ]                 
+    reference_params['nl']  = [ 4.87, 6.10, 17.5 ]
+    reference_params['wg'] = [  1.94e-8, 2.31e-7, 1.0  ]
     
     scale_params = {}
-    scale_params['ub'] =  [ 1.* beta, 1.* beta, 1.*beta]
+    scale_params['ub'] =  [ 1.* beta, 1.* beta, 1.* beta]
     scale_params['sb'] =  [ 0.1*beta, 0.1*beta, 0.1*beta]
-    scale_params['pb'] =  [ 1.e-5, 1.e-6, 1.e-6]
-    scale_params['elj'] = [ 1.*beta, 1.*beta, 1.*beta ]
+    scale_params['pb'] =  [ 1.e-8, 1.e-8, 1.e-20]
+    scale_params['elj'] = [ 1.*beta, 1.*beta,  1.*beta]
     scale_params['uce'] = [ 0.1, 0.1, 0.1 ]
-    scale_params['nl']  = [ 0.1, 0.1, 0.1 ]
-    scale_params['wg'] =  [ 1.e-3, 1.e-2, 1.0 ]
+    scale_params['nl']  = [ 1.0, 1.0, 1.0 ]
+    scale_params['wg'] =  [ 1.0e-8, 1.0e-7, 1.0  ]
 
     learning_rate = 0.01
 
@@ -72,7 +114,7 @@ if __name__ == '__main__':
     xparams = {}
     if restart:
         with open(basename + '.pickle', 'rb') as f:
-            best_ubx, best_sbx, best_pbx, best_ex, best_ucx, best_nlx, best_weight = pickle.load(f)
+            best_ubx, best_sbx, best_pbx, best_ex, best_ucx, best_nlx, best_wgx = pickle.load(f)
             xparams['ub'] = best_ubx
             xparams['sb'] = best_sbx
             xparams['pb']  = best_pbx
@@ -89,14 +131,15 @@ if __name__ == '__main__':
         xparams['nl']  = [0. for i in range(nmodes) ]
         xparams['wg']  = [0. for i in range(nmodes) ]
 
-    fe_optimizer = femodel_tf_optimizer_t4l(sdm_data, reference_params, temperature,
-                                        xparams=xparams, scale_params=scale_params, discard=discard, learning_rate=learning_rate)
+    fe_optimizer = femodel(sdm_data, reference_params, temperature,
+                  xparams=xparams, scale_params=scale_params, discard=discard, learning_rate=learning_rate)
                                         
-    variables = [ fe_optimizer.pbx_t, fe_optimizer.ex_t, fe_optimizer.ucx_t, fe_optimizer.nlx_t, fe_optimizer.wgx_t ]
+    #variables = [ fe_optimizer.pbx_t, fe_optimizer.ex_t, fe_optimizer.ucx_t, fe_optimizer.nlx_t, fe_optimizer.wgx_t ]
+    variables = [ fe_optimizer.ubx_t, fe_optimizer.sbx_t , fe_optimizer.wgx_t ]
     
     #----- test area ----------------
 
-
+    tf.logging.set_verbosity(tf.logging.ERROR)
     
     if testarea:
         with tf.Session() as sess:
@@ -136,8 +179,7 @@ if __name__ == '__main__':
             print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)) 
             print("-----")
 
-        #LAMBDAS = '0.000, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0'
-        tlambda = 0.229
+        # LAMBDAS= ' 0.000, 0.067, 0.133, 0.200, 0.267, 0.333, 0.400, 0.467, 0.533, 0.600, 0.667, 0.733, 0.800, 0.867, 0.933, 1.000'
         mask = abs(lv - tlambda) < 1.e-6
         hist, bin_edges = np.histogram(uscv[mask]*kT, bins=30, density=True)
         np = len(hist)
@@ -198,8 +240,8 @@ if __name__ == '__main__':
             print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)) 
             print("-----")
         
-            for step in range(10):
-                for i in range(10):
+            for step in range(ncycles):
+                for i in range(nsteps):
                     sess.run(fe_optimizer.train) #all variables optimized
                     #sess.run(fe_optimizer.opt) #only selected variables are optimized
                 gubx = sess.run(fe_optimizer.gubx_t)
@@ -263,12 +305,15 @@ if __name__ == '__main__':
                 print(l_wg)
                 print(fe_optimizer.applyunits(l_ub, l_sb, l_pb, l_elj, l_uce, l_nl)) 
                 print("-----")
-            
+
+                with open(basename + '.pickle', 'wb') as f:
+                    pickle.dump([best_ubx, best_sbx, best_pbx, best_ex, best_ucx, best_nlx, best_wgx],f)
+
+
+                
             print("----- End of optimization --------");
             print("best", "cost =", best_loss)
             print(best_wg)
             print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl))
 
-        with open(basename + '.pickle', 'wb') as f:
-            pickle.dump([best_ubx, best_sbx, best_pbx, best_ex, best_ucx, best_nlx, best_wgx],f)
 
