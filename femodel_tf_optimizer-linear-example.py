@@ -305,7 +305,7 @@ if __name__ == '__main__':
                 
             print("----- End of optimization --------");
             print("best", "cost =", best_loss)
-            print(best_wg)
+            print("best weights =", best_wg)
             print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl))
 
 
