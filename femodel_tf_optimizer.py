@@ -110,6 +110,9 @@ class femodel_tf_optimizer(object):
 
     def consweightx(self, wx):#forces weights to be within 0 and 1
         return tf.minimum(self.maxwx_t,tf.maximum(self.minwx_t,wx))
+    
+    def conssbx(self, sbx):
+        return tf.maximum(self.minsb_t, sbx)
 
     def conseljx(self, ex):
         mineljx = (self.minelj_t - self.mid_params_elj_t)/self.scale_params_elj_t
@@ -268,7 +271,7 @@ class femodel_tf_optimizer(object):
             assert len(xparams['wg'])   == nmodes, "invalid number of x weight parameters, %d instead of %d"  % (len(xparams['wg']), nmodes)
             
             self.ubx_t = tf.Variable(xparams['ub'],  dtype=tf.float64)
-            self.sbx_t = tf.Variable(xparams['sb'],  dtype=tf.float64)
+            self.sbx_t = tf.Variable(xparams['sb'],  dtype=tf.float64, constraint=self.conssbx)
             self.pbx_t = tf.Variable(xparams['pb'],  dtype=tf.float64, constraint=self.conspbx)
             self.ex_t  = tf.Variable(xparams['elj'], dtype=tf.float64, constraint=self.conseljx)
             self.ucx_t = tf.Variable(xparams['uce'], dtype=tf.float64, constraint=self.consucx)
