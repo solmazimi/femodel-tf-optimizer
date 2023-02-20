@@ -20,8 +20,8 @@ From [Alchemical Transformations for Single-Step Hydration Free Energy Calculati
 
 
 ## To employ with the most recent version of AToM
-# Leg is specified as either 1 or 2
-# For inspection instead of lambda state, designate stateID
+#### Leg is specified as either 1 or 2
+#### For inspection instead of lambda state, designate stateID
 
 Usage:
 
