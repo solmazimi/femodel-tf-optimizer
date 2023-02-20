@@ -118,6 +118,16 @@ class femodel_tf_optimizer(object):
         mineljx = (self.minelj_t - self.mid_params_elj_t)/self.scale_params_elj_t
         return tf.maximum(mineljx, ex)
 
+   # Constraint that prevents bound component from not overreaching past the most minimun sample, umin
+    def consubx(self):
+        return self.ub_t-tf.pow(self.sb_t,2)-(3.*self.sb_t)
+    
+    def consubx_smaller(self):
+        return self.penalty_force_constant*tf.pow(self.consubx() - self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64), 2)
+
+    def consubx_larger(self):
+        return tf.zeros([tf.size(self.ubx_t)], dtype=tf.float64)
+
     """
     ### Methods to override in child classes
     
@@ -242,15 +252,16 @@ class femodel_tf_optimizer(object):
         self.scale_params_nl_t  = [tf.constant(p, dtype=tf.float64) for p in scale_nl]
         self.scale_params_wg_t =  [tf.constant(p, dtype=tf.float64) for p in scale_wg]
         
-        #miscellania constants
+        # Miscellania constants
         self.pi = tf.constant(np.pi, dtype=tf.float64)
         self.eps = tf.constant(1.e-6, dtype=tf.float64) #small regularization factor
         self.sq2 = tf.constant(np.math.sqrt(2.), dtype=tf.float64)
         self.sq2pi = tf.math.sqrt(2.*self.pi)
         self.duinv = tf.constant(20., dtype=tf.float64) #width of sigmoid at zero
 
-        #constraints
-        self.minuce_t    = tf.constant([-0.5 for i in range(self.nmodes)], dtype=tf.float64)
+        # Parameter constraints
+        self.minsb_t = tf.constant([0.001 for i in range(self.nmodes)], dtype=tf.float64)
+        self.minuce_t    = tf.constant([0.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.minnl_t     = tf.constant([ 1.5 for i in range(self.nmodes)], dtype=tf.float64)
         self.minpb_t     = tf.constant([ 0.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.maxpb_t     = tf.constant([ 1.0 for i in range(self.nmodes)], dtype=tf.float64)
@@ -302,7 +313,8 @@ class femodel_tf_optimizer(object):
         sdm_data['mask'] = sdm_data['cycle'] > discard
         rel_data = sdm_data.loc[sdm_data['mask'] == True]
         rel_data['u'] = rel_data['u'].astype(np.float64)
-        rel_data['Lambda'] = rel_data['Lambda'].astype(np.float64)
+        #rel_data['Lambda'] = rel_data['Lambda'].astype(np.float64)
+        rel_data['stateID'] = rel_data['stateID'].astype(np.float64)
         rel_data['Lambda1'] = rel_data['Lambda1'].astype(np.float64)
         rel_data['Lambda2'] = rel_data['Lambda2'].astype(np.float64)
         rel_data['alpha'] = rel_data['alpha'].astype(np.float64)*self.kT
@@ -315,7 +327,8 @@ class femodel_tf_optimizer(object):
         self.u   = self.inverse_soft_core_function(self.usc)
         self.upsc = self.der_soft_core_function(self.u)
         self.lambdas = {}
-        self.lambdas['Lambda'] = tf.constant(np.array(rel_data['Lambda']),dtype=tf.float64)
+        #self.lambdas['Lambda'] = tf.constant(np.array(rel_data['Lambda']),dtype=tf.float64)
+        self.lambdas['stateID'] = tf.constant(np.array(rel_data['stateID']),dtype=tf.float64)
         self.lambdas['Lambda1'] = tf.constant(np.array(rel_data['Lambda1']),dtype=tf.float64)
         self.lambdas['Lambda2'] = tf.constant(np.array(rel_data['Lambda2']),dtype=tf.float64)
         self.lambdas['alpha'] = tf.constant(np.array(rel_data['alpha']),dtype=tf.float64)
@@ -484,7 +497,13 @@ class femodel_tf_optimizer(object):
         # $$
         self.expl = tf.math.exp(- self.alchemical_potential(self.lambdas,self.usc))
         self.pkl = self.expl*self.p0sc/self.kl
-        self.cost = -tf.reduce_sum(tf.math.log(self.pkl))
+
+        # Cost penalty associated to umin constraint
+        self.penalty_force_constant = tf.constant(100., dtype=tf.float64)
+        self.pen_cond = tf.math.greater(self.consubx(), self.umin*self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64))
+        self.cost_pen = tf.where(self.pen_cond, self.consubx_larger(), self.consubx_smaller())
+
+        self.cost = -tf.reduce_sum(tf.math.log(self.pkl)) + tf.reduce_sum(self.cost_pen)
 
         # gradient probes
         self.gubx_t = tf.gradients(self.cost,self.ubx_t)
@@ -493,10 +512,10 @@ class femodel_tf_optimizer(object):
         self.gex_t  = tf.gradients(self.cost,self.ex_t)
         self.gucx_t = tf.gradients(self.cost,self.ucx_t)
         self.gnlx_t = tf.gradients(self.cost,self.nlx_t)
-        self.gwgx_t = tf.gradients(self.cost,self.wgx_t) 
+        self.gwgx_t = tf.gradients(self.cost,self.wgx_t)
 
         # Initializer to start tensorflow optimizer session
-        self.optimizer = tf.train.AdamOptimizer(self.learning_rate) 
+        self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.train = self.optimizer.minimize(self.cost)
         self.init = tf.global_variables_initializer()
         self.gradient_cost = self.optimizer.compute_gradients(self.cost)
