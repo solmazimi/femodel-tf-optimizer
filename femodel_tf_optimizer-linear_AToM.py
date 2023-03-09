@@ -5,10 +5,13 @@ import random
 import math
 import pickle
 from numpy.polynomial.hermite import hermgauss
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 from femodel_tf_optimizer import femodel_tf_optimizer
 import os, sys
 import argparse
+
 
 class femodel(femodel_tf_optimizer):
     """
@@ -47,9 +50,10 @@ if __name__ == '__main__':
                         help="Basename of the optimization job. Defaults to basename of this script.")
     parser.add_argument("-d", "--datafile", default="repl.cycle.potE.temp.lambda.ebind.lambda1.lambda2.alpha.u0.w0.dat",
                         help="Data file")
-    
-    parser.add_argument("-l", "--plambda", type=float, default=0.0,
-                        help="Value of lambda at which to plot the distributions")
+    parser.add_argument("-l", "--leg", type=float, default=1.0,
+                        help="Value of state ID at which to plot the distributions")
+    parser.add_argument("-s", "--stateID", type=float, default=0.0,
+                        help="Value of state ID at which to plot the distributions")
     args = parser.parse_args()
     
     restart = args.restart
@@ -64,44 +68,69 @@ if __name__ == '__main__':
     datafile = args.datafile
     ncycles = args.ncycles
     nsteps = args.nsteps
-    tlambda = args.plambda
-    
-    sdm_data_raw = pd.read_csv(datafile, delim_whitespace=True, 
-                           header=None,names=["replica","cycle","potE",
-                                              "temp","Lambda","ebind",
-                                              "Lambda1", "Lambda2", "alpha", "u0", "w0" ])
-#    sdm_data = sdm_data_raw[sdm_data_raw['Lambda'] > 0.075 ]
+    state = args.stateID
+    leg = args.leg
+
+    print("Leg = ", leg)
+    if leg == 1:
+        direction = leg
+    else:
+        direction = -1.0
+    print("Direction = ", direction)
+
+    sdm_data_raw = pd.read_csv(datafile, delim_whitespace=True,
+                           header=None,names=["cycle", "stateID", "temp", "direct", "Lambda1",
+                                              "Lambda2", "alpha", "u0", "w0", "potE", "ebind", "bias"])
+#    sdm_data = sdm_data_raw[sdm_data_raw['Lambda1'] > 0.6 ]
 #    sdm_data = sdm_data_raw[sdm_data_raw['cycle'] % 4 == 0 ]
-    sdm_data = sdm_data_raw
-    
+
+    lam_col = []
+    for row in sdm_data_raw['stateID']:
+        lam = 0.05*row
+        if (lam > 0.5):
+            lam = lam - 0.05
+        lam_col.append(lam)
+
+    print(sdm_data_raw.stateID)
+
+    sdm_data_raw.insert(2, "Lambda", lam_col)
+
+
+    print(sdm_data_raw)
+
+    sdm_data = sdm_data_raw[sdm_data_raw["direct"] == direction]
+
+    print(sdm_data)
+    sys.exit(0)
+
     temperature = 300.0
     kT = 1.986e-3*temperature # [kcal/mol]
     beta = 1./kT
 
-    nmodes = 3
+    nmodes = 2
 
-    reference_params = {}        
-    reference_params['ub'] = [  -15.35*beta, -10.7*beta, 13.7*beta ]
-    reference_params['sb'] = [   3.24*beta, 3.22*beta, 3.0*beta ]
-    reference_params['pb'] = [   9.31e-8,    6.13e-8, 1.e-20 ]
-    reference_params['elj'] = [ 4.93*beta, 7.91*beta, 18.5*beta ]
-    reference_params['uce'] = [ 2.52/4.93, 15.1/7.91, 72.0/18.5 ]                 
-    reference_params['nl']  = [ 4.87, 6.10, 17.5 ]
-    reference_params['wg'] = [  1.94e-8, 2.31e-7, 1.0  ]
+    reference_params = {}
+    reference_params['ub'] = [ 13.71762778678234*beta, 23.947180253345543*beta ]
+    reference_params['sb'] = [ 3.51531674*beta, 4.040875929237973*beta  ]
+    reference_params['pb'] = [ (1.-1.e-32), 1.0e-32 ]
+    reference_params['elj'] = [ 1.*beta, 1.*beta ]
+    reference_params['uce'] = [ 1.0, 0.0 ]
+    reference_params['nl']  = [ 1.5, 6.7047697066672045 ]
+    reference_params['wg'] =  [ 2.36752222e-02, 8.51789027e-05 ]
     
     scale_params = {}
-    scale_params['ub'] =  [ 1.* beta, 1.* beta, 1.* beta]
-    scale_params['sb'] =  [ 0.1*beta, 0.1*beta, 0.1*beta]
-    scale_params['pb'] =  [ 1.e-8, 1.e-8, 1.e-20]
-    scale_params['elj'] = [ 1.*beta, 1.*beta,  1.*beta]
-    scale_params['uce'] = [ 0.1, 0.1, 0.1 ]
-    scale_params['nl']  = [ 1.0, 1.0, 1.0 ]
-    scale_params['wg'] =  [ 1.0e-8, 1.0e-7, 1.0  ]
+    scale_params['ub'] =  [ 1.* beta , 1.* beta ]
+    scale_params['sb'] =  [ 0.1*beta , 0.1*beta ]
+    scale_params['pb'] =  [ 1.e-1, 1.e-32 ]
+    scale_params['elj'] = [ 1.*beta, 1.*beta ]
+    scale_params['uce'] = [ 0.1, 0.1 ]
+    scale_params['nl']  = [ 1.0, 1.0 ]
+    scale_params['wg'] =  [ 1.e-5, 1.e-2 ]
 
 
     learning_rate = 0.01
 
-    discard = 0
+    discard = 491
     
     xparams = {}
     if restart:
@@ -110,7 +139,7 @@ if __name__ == '__main__':
             xparams['ub'] = best_ubx
             xparams['sb'] = best_sbx
             xparams['pb']  = best_pbx
-            xparams['elj']   = best_ex 
+            xparams['elj']   = best_ex
             xparams['uce']  = best_ucx
             xparams['nl']  = best_nlx
             xparams['wg'] = best_wgx
@@ -126,8 +155,8 @@ if __name__ == '__main__':
     fe_optimizer = femodel(sdm_data, reference_params, temperature,
                   xparams=xparams, scale_params=scale_params, discard=discard, learning_rate=learning_rate)
                                         
-    #variables = [ fe_optimizer.pbx_t, fe_optimizer.ex_t, fe_optimizer.ucx_t, fe_optimizer.nlx_t, fe_optimizer.wgx_t ]
-    variables = [ fe_optimizer.ubx_t, fe_optimizer.sbx_t , fe_optimizer.wgx_t ]
+    variables = [ fe_optimizer.ubx_t, fe_optimizer.sbx_t , fe_optimizer.ex_t, fe_optimizer.ucx_t, fe_optimizer.nlx_t, fe_optimizer.wgx_t ]
+    #variables = [ fe_optimizer.ubx_t, fe_optimizer.sbx_t , fe_optimizer.wgx_t ]
     
     #----- test area ----------------
 
@@ -144,7 +173,7 @@ if __name__ == '__main__':
             pklv = sess.run(tf.squeeze(fe_optimizer.pkl))
             xscv = sess.run(fe_optimizer.xsc)
             p0scxv = sess.run(tf.squeeze(fe_optimizer.p0scx))
-            lv = sess.run(fe_optimizer.lambdas['Lambda'])
+            sts = sess.run(fe_optimizer.lambdas['stateID'])
             upscv = sess.run(fe_optimizer.upsc)
             klv = sess.run(tf.squeeze(fe_optimizer.kl))
 
@@ -165,14 +194,20 @@ if __name__ == '__main__':
             best_nl = sess.run(fe_optimizer.nl_t)
             best_wg = sess.run(fe_optimizer.wg_t)
             
-            print("start ", "cost =", ll)
-            print("parameters:")
-            print(best_wg)
-            print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)) 
-            print("-----")
+            print("Optimized Cost =", ll)
+            print("Parameters:")
+            print("wg = ", best_wg)
+            results = fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)
+            params = ["ub", "sb", "pb", "elj", "uce", "nl"]
+            for mode, item in enumerate(results):
+                string = ""
+                for value in item:
+                    string = string + str(value) + " "
+                print(params[mode] + " = [" + string + "]")
+            print("-------------------------------------------------------------------------")
 
         # LAMBDAS= ' 0.000, 0.067, 0.133, 0.200, 0.267, 0.333, 0.400, 0.467, 0.533, 0.600, 0.667, 0.733, 0.800, 0.867, 0.933, 1.000'
-        mask = abs(lv - tlambda) < 1.e-6
+        mask = abs(sts - state) < 1.e-6
         hist, bin_edges = np.histogram(uscv[mask]*kT, bins=30, density=True)
         np = len(hist)
         dx = bin_edges[1] - bin_edges[0]
@@ -223,19 +258,27 @@ if __name__ == '__main__':
             gucx = sess.run(fe_optimizer.gucx_t)
             gnlx = sess.run(fe_optimizer.gnlx_t)
             gwgx = sess.run(fe_optimizer.gwgx_t)
-            print("gradients:")
+            print("Gradients:")
             print(gubx,gsbx,gpbx,gex,gucx,gnlx,gwgx)
             
-            print("start ", "cost =", ll)
-            print("parameters:")
-            print(best_wg)
-            print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)) 
-            print("-----")
+            print("Start Cost =", ll)
+            print("Parameters:")
+            print("wg = ", best_wg)
+
+            results = fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)
+            params = ["ub", "sb", "pb", "elj", "uce", "nl"]
+            for mode, item in enumerate(results):
+                string = ""
+                for value in item:
+                    string = string + str(value) + " "
+                print(params[mode] + " = [" + string + "]")
+
+            print("---------------------------------------")
         
             for step in range(ncycles):
                 for i in range(nsteps):
-                    sess.run(fe_optimizer.train) #all variables optimized
-                    #sess.run(fe_optimizer.opt) #only selected variables are optimized
+                    #sess.run(fe_optimizer.train) #all variables optimized
+                    sess.run(fe_optimizer.opt) #only selected variables are optimized
                 gubx = sess.run(fe_optimizer.gubx_t)
                 gsbx = sess.run(fe_optimizer.gsbx_t)
                 gpbx = sess.run(fe_optimizer.gpbx_t)
@@ -250,8 +293,10 @@ if __name__ == '__main__':
                           np.any(np.isnan(gucx)) or
                           np.any(np.isnan(gnlx)) or
                           np.any(np.isnan(gwgx)) )
-                print("gradients:")
-                print(gubx,gsbx,gpbx,gex,gucx,gnlx,gwgx)
+                
+                if (step % 25) == 0:
+                    print("Gradients:")
+                    print(gubx,gsbx,gpbx,gex,gucx,gnlx,gwgx)
                 if notok:
                     print("Gradient error")
                     break
@@ -292,20 +337,35 @@ if __name__ == '__main__':
                     best_nl  = l_nl   
                     best_wg  = l_wg
     
-                print(step, "cost =", ll)
-                print("parameters:")
-                print(l_wg)
-                print(fe_optimizer.applyunits(l_ub, l_sb, l_pb, l_elj, l_uce, l_nl)) 
-                print("-----")
+                if (step % 25) == 0:
+                    print(step, "Cost =", ll)
+                    print("Parameters:")
+                    print("wg = ", l_wg)
+                    results = fe_optimizer.applyunits(l_ub, l_sb, l_pb, l_elj, l_uce, l_nl)
+                    params = ["ub", "sb", "pb", "elj", "uce", "nl"]
+                    for mode, item in enumerate(results):
+                        string = ""
+                        for value in item:
+                            string = string + str(value) + " "
+                        print(params[mode] + " = [" + string + "]") 
+
+                    print("----------------------------------------------------")
 
                 with open(basename + '.pickle', 'wb') as f:
                     pickle.dump([best_ubx, best_sbx, best_pbx, best_ex, best_ucx, best_nlx, best_wgx],f)
 
 
                 
-            print("----- End of optimization --------");
-            print("best", "cost =", best_loss)
-            print("best weights =", best_wg)
-            print(fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl))
+            print("----------- End of Optimization -----------");
+            print("Optimized Cost =", best_loss)
+            print("wg = ", best_wg)
+            results = fe_optimizer.applyunits(best_ub, best_sb, best_pb, best_elj, best_uce, best_nl)
+            params = ["ub", "sb", "pb", "elj", "uce", "nl"]
+            for mode, item in enumerate(results):
+                string = ""
+                for value in item:
+                    string = string + str(value) + " "
+                print(params[mode] + " = [" + string + "]")
+
 
 
