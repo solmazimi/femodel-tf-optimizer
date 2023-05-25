@@ -50,7 +50,7 @@ if __name__ == '__main__':
                         help="Basename of the optimization job. Defaults to basename of this script.")
     parser.add_argument("-d", "--datafile", default="repl.cycle.potE.temp.lambda.ebind.lambda1.lambda2.alpha.u0.w0.dat",
                         help="Data file")
-    parser.add_argument("-l", "--leg", type=float, default=1.0,
+    parser.add_argument("-l", "--leg", type=float, default=-1.0,
                         help="Value of state ID at which to plot the distributions")
     parser.add_argument("-s", "--stateID", type=float, default=0.0,
                         help="Value of state ID at which to plot the distributions")
@@ -96,41 +96,41 @@ if __name__ == '__main__':
     sdm_data_raw.insert(2, "Lambda", lam_col)
 
 
-    print(sdm_data_raw)
+    # print(sdm_data_raw)
 
     sdm_data = sdm_data_raw[sdm_data_raw["direct"] == direction]
 
     print(sdm_data)
-    sys.exit(0)
+    #sys.exit(0)
 
     temperature = 300.0
     kT = 1.986e-3*temperature # [kcal/mol]
     beta = 1./kT
 
-    nmodes = 2
+    nmodes = 1
 
     reference_params = {}
-    reference_params['ub'] = [ 13.71762778678234*beta, 23.947180253345543*beta ]
-    reference_params['sb'] = [ 3.51531674*beta, 4.040875929237973*beta  ]
-    reference_params['pb'] = [ (1.-1.e-32), 1.0e-32 ]
-    reference_params['elj'] = [ 1.*beta, 1.*beta ]
-    reference_params['uce'] = [ 1.0, 0.0 ]
-    reference_params['nl']  = [ 1.5, 6.7047697066672045 ]
-    reference_params['wg'] =  [ 2.36752222e-02, 8.51789027e-05 ]
+    reference_params['ub'] = [ 20.61348304*beta ]
+    reference_params['sb'] = [ 4.956370782*beta ]
+    reference_params['pb'] = [ 0.01698402 ]
+    reference_params['elj'] = [ 1.*beta ]
+    reference_params['uce'] = [ 10.3405974 ]
+    reference_params['nl']  = [ 2.161958182  ]
+    reference_params['wg'] =  [ 1.0 ]
     
     scale_params = {}
-    scale_params['ub'] =  [ 1.* beta , 1.* beta ]
-    scale_params['sb'] =  [ 0.1*beta , 0.1*beta ]
-    scale_params['pb'] =  [ 1.e-1, 1.e-32 ]
-    scale_params['elj'] = [ 1.*beta, 1.*beta ]
-    scale_params['uce'] = [ 0.1, 0.1 ]
-    scale_params['nl']  = [ 1.0, 1.0 ]
-    scale_params['wg'] =  [ 1.e-5, 1.e-2 ]
+    scale_params['ub'] =  [ 1.* beta ]
+    scale_params['sb'] =  [ 0.1*beta ]
+    scale_params['pb'] =  [ 1.e-2 ]
+    scale_params['elj'] = [ 1.*beta ]
+    scale_params['uce'] = [ 0.1 ]
+    scale_params['nl']  = [ 1.0 ]
+    scale_params['wg'] =  [ 1.0 ]
 
 
     learning_rate = 0.01
 
-    discard = 491
+    discard = 250
     
     xparams = {}
     if restart:
