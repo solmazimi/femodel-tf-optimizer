@@ -5,7 +5,9 @@ import random
 import math
 import pickle
 from numpy.polynomial.hermite import hermgauss
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 # ## Class Based on Tensorflow to Optimize the Analytic Model of Alchemical Binding
 # 
@@ -151,9 +153,9 @@ class femodel_tf_optimizer(object):
     def der_soft_core_function(self, ubind):# dusc/du
         return tf.ones([tf.size(ubind)], dtype=tf.float64)
     def alchemical_potential_x(self, lmbds, xscbind):
-        return xscbind[:,None] * lmbds['Lambda'][None,:]
+        return xscbind[:,None] * lmbds['Lambda1'][None,:]
     def alchemical_potential(self, lmbds, uscbind):
-        return lmbds['Lambda']*uscbind
+        return lmbds['Lambda1']*uscbind
     """
     ### Init
      

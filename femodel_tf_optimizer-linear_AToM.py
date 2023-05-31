@@ -17,23 +17,95 @@ class femodel(femodel_tf_optimizer):
     """
     Class to optimize analytic binding free energy model with Tensorflow
     """
-    # rational soft-core
     kBT = 1.986e-3*300.0
+    epsim = tf.constant(1.e-8, dtype=tf.float64)
+    
+    """    
+    Rational soft-core function.
+
+    Special case: when $u_c = 0$, 
+    $$
+    u_{\rm sc,0}(u)=
+    \begin{cases}
+    u                                                         & u \le 0 \\
+    u_{\rm max} f_{\rm sc}(y)                                 & u  >  0
+    \end{cases}
+    $$
+    with
+    $$
+    y = \frac{u}{u_{\rm max}}
+    $$
+    $$
+    f_{\rm sc}(y) = \frac{z(y)^{a}-1}{z(y)^{a}+1} \, ,
+    $$
+    and
+    $$
+    z(y)=1+2 y/a + 2 (y/a)^2
+    $$
+    
+    Inverse: $u = u_{\rm sc,0}$ for $u \le 0$. For $u > 0$:
+    $$
+    f_{\rm sc} = u_{\rm sc,0}/{u_{\rm max}}
+    $$
+    $$
+    z = \left( \frac{1 + f_{\rm sc}}{1 - f_{\rm sc}}  \right)^(1/a)
+    $$
+    y = \frac{a}{2} \left( \sqrt{2 z - 1} -1  \right)
+    $$
+    $$
+    u = u_{\rm max} y
+    $$
+
+    The derivative is:
+    $$
+    \frac{d u_{\rm sc,0}(u) }{du} = \frac{4 z^{a - 1}{(z^a + 1)^2} ( 1 + 2 \frac{y}{a} )
+    $$
+    for $u > 0$ and $1$ otherwise
+
+    The general case $u_c \ne 0$ is obtained by shifting $u_{\rm sc}(u)$ up by $u_c$ and right by $u_c$:
+    $$
+    u_{\rm sc}(u) = u_{\rm sc,0}(u - u_c) + u_c
+    $$
+    For consistency, $u_{\rm max}$ is also shifted up by $u_c$. So the general case $u_c \ne 0$ is obtained
+    by the special case $u_c = 0$ by the replacements
+    $$
+    u \rightarrow u - u_c
+    $$
+    $$
+    u_{\rm max} \rightarrow u_{\rm max} - u_c
+    $$
+
+    Inverse for the general case: same as for the special case with the replacements above and:
+    $$
+    u = ( u_{\rm max} - u_c ) y + u_c
+    $$
+
+    Using the chain rule, the derivative for the general case has the same expression as the special case
+    with the same replacements.
+    
+
+    """
     alphasc = tf.constant(1./16.,dtype=tf.float64)
-    umaxsc = tf.constant(50.0/kBT, dtype=tf.float64)
-    ausc = alphasc*umaxsc
-    ubcore = tf.constant(0.0/kBT, dtype=tf.float64)
+    umaxsc = tf.constant(100.0/kBT, dtype=tf.float64)
+    ubcore = tf.constant(50.0/kBT, dtype=tf.float64)
     def inverse_soft_core_function(self,usc):
+        uno = tf.ones([tf.size(usc)], dtype=tf.float64)
+        usc_safe1 = tf.where(usc < femodel.ubcore + femodel.epsim,       uno*(femodel.ubcore + femodel.epsim), usc)
+        usc_safe2 = tf.where(usc_safe1 > femodel.umaxsc - femodel.epsim, uno*(femodel.umaxsc - femodel.epsim), usc_safe1)
+        fsc = (usc_safe2-femodel.ubcore)/(femodel.umaxsc-femodel.ubcore)
+        z = tf.math.pow((1.+fsc)/(1.-fsc), 1./femodel.alphasc)
+        y = 0.5*femodel.alphasc*(-1.0 + tf.math.sqrt(2.*z - 1.))
         return tf.where(usc <= femodel.ubcore,
                         usc,
-                        femodel.ubcore + 0.5*femodel.ausc*(-1.0 + tf.math.sqrt(2.*tf.math.pow((femodel.umaxsc+(usc-femodel.ubcore))/(femodel.umaxsc-(usc-femodel.ubcore)),1./femodel.alphasc)-1.0)))
+                        femodel.ubcore + (femodel.umaxsc - femodel.ubcore)*y)
     
     def der_soft_core_function(self,u):# dusc/du
-        self.yscaX = tf.math.pow(1. + 2.*(u-femodel.ubcore)/femodel.ausc + 2.*tf.math.pow((u-femodel.ubcore)/femodel.ausc,2), femodel.alphasc)
+        y = (u - femodel.ubcore)/(femodel.umaxsc-femodel.ubcore)
+        z = 1 + 2.*y/femodel.alphasc + 2.*tf.math.pow(y/femodel.alphasc,2)
+        za = tf.math.pow(z,femodel.alphasc)
         return tf.where(u <= femodel.ubcore,
                         tf.ones([tf.size(u)], dtype=tf.float64),
-                        4.*femodel.ausc*(femodel.ausc + 2.*(u-femodel.ubcore))*self.yscaX/\
-                        ((2.*tf.math.pow(femodel.ubcore,2) + tf.math.pow(femodel.ausc,2) + 2.*femodel.ausc*u+2.*u*u-2.*femodel.ubcore*(femodel.ausc+2.*u))*tf.math.pow(1.+self.yscaX,2)) )
+                        (4*(za/z)/tf.math.pow((za+1),2))*(1 + 2.*y/femodel.alphasc))
 
 if __name__ == '__main__':
 
@@ -101,7 +173,7 @@ if __name__ == '__main__':
     sdm_data = sdm_data_raw[sdm_data_raw["direct"] == direction]
 
     print(sdm_data)
-    sys.exit(0)
+    #sys.exit(0)
 
     temperature = 300.0
     kT = 1.986e-3*temperature # [kcal/mol]
@@ -126,8 +198,7 @@ if __name__ == '__main__':
     scale_params['uce'] = [ 0.1, 0.1 ]
     scale_params['nl']  = [ 1.0, 1.0 ]
     scale_params['wg'] =  [ 1.e-5, 1.e-2 ]
-
-
+ 
     learning_rate = 0.01
 
     discard = 491
