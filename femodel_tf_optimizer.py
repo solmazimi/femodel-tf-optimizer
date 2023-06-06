@@ -114,7 +114,8 @@ class femodel_tf_optimizer(object):
         return tf.minimum(self.maxwx_t,tf.maximum(self.minwx_t,wx))
     
     def conssbx(self, sbx):
-        return tf.maximum(self.minsb_t, sbx)
+        minsbx = (self.minsb_t - self.mid_params_sb_t)/self.scale_params_sb_t
+        return tf.maximum(minsbx, sbx)
 
     def conseljx(self, ex):
         mineljx = (self.minelj_t - self.mid_params_elj_t)/self.scale_params_elj_t
