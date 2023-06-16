@@ -264,8 +264,8 @@ class femodel_tf_optimizer(object):
 
         # Parameter constraints
         self.minsb_t = tf.constant([0.001 for i in range(self.nmodes)], dtype=tf.float64)
-        self.minuce_t    = tf.constant([0.0 for i in range(self.nmodes)], dtype=tf.float64)
-        self.minnl_t     = tf.constant([ 1.5 for i in range(self.nmodes)], dtype=tf.float64)
+        self.minuce_t    = tf.constant([ -1.0 for i in range(self.nmodes)], dtype=tf.float64) #0.0
+        self.minnl_t     = tf.constant([ 1.01 for i in range(self.nmodes)], dtype=tf.float64) #1.0
         self.minpb_t     = tf.constant([ 0.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.maxpb_t     = tf.constant([ 1.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.minelj_t    = tf.constant([ 1.0*beta for i in range(self.nmodes)], dtype=tf.float64)
@@ -351,7 +351,7 @@ class femodel_tf_optimizer(object):
          $$
          where we assume that $p_{WCA}(u')$ is set to zero for $u'\lt 0$.
         """
-        xg,wg = hermgauss(255)
+        xg,wg = hermgauss(17)#255
         self.n_gauss = tf.constant(xg.size, dtype=tf.int64)
         self.x_gauss = tf.constant(xg, dtype=tf.float64)
         self.w_gauss = tf.constant(wg, dtype=tf.float64)
