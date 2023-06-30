@@ -316,13 +316,6 @@ class femodel_tf_optimizer(object):
         sdm_data['mask'] = sdm_data['cycle'] > discard
         rel_data = sdm_data.loc[sdm_data['mask'] == True]
         rel_data['u'] = rel_data['u'].astype(np.float64)
-        #rel_data['Lambda'] = rel_data['Lambda'].astype(np.float64)
-        rel_data['stateID'] = rel_data['stateID'].astype(np.float64)
-        rel_data['Lambda1'] = rel_data['Lambda1'].astype(np.float64)
-        rel_data['Lambda2'] = rel_data['Lambda2'].astype(np.float64)
-        rel_data['alpha'] = rel_data['alpha'].astype(np.float64)*self.kT
-        rel_data['u0'] = rel_data['u0'].astype(np.float64)*beta
-        rel_data['w0'] = rel_data['w0'].astype(np.float64)*beta
 
         # load (u,lambda) data pairs in constant tensors
         self.usc = tf.constant(np.array(rel_data['u']),dtype=tf.float64)
@@ -330,7 +323,6 @@ class femodel_tf_optimizer(object):
         self.u   = self.inverse_soft_core_function(self.usc)
         self.upsc = self.der_soft_core_function(self.u)
         self.lambdas = {}
-        #self.lambdas['Lambda'] = tf.constant(np.array(rel_data['Lambda']),dtype=tf.float64)
         self.lambdas['stateID'] = tf.constant(np.array(rel_data['stateID']),dtype=tf.float64)
         self.lambdas['Lambda1'] = tf.constant(np.array(rel_data['Lambda1']),dtype=tf.float64)
         self.lambdas['Lambda2'] = tf.constant(np.array(rel_data['Lambda2']),dtype=tf.float64)
