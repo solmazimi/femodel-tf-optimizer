@@ -343,7 +343,7 @@ class femodel_tf_optimizer(object):
          $$
          where we assume that $p_{WCA}(u')$ is set to zero for $u'\lt 0$.
         """
-        xg,wg = hermgauss(255)
+        xg,wg = hermgauss(21)
         self.n_gauss = tf.constant(xg.size, dtype=tf.int64)
         self.x_gauss = tf.constant(xg, dtype=tf.float64)
         self.w_gauss = tf.constant(wg, dtype=tf.float64)
