@@ -260,7 +260,7 @@ class femodel_tf_optimizer(object):
         self.eps = tf.constant(1.e-6, dtype=tf.float64) #small regularization factor
         self.sq2 = tf.constant(np.math.sqrt(2.), dtype=tf.float64)
         self.sq2pi = tf.math.sqrt(2.*self.pi)
-        self.duinv = tf.constant(20., dtype=tf.float64) #width of sigmoid at zero
+        self.epsu = tf.constant(1.e-8, dtype=tf.float64) #smallest positive perturbation energy
 
         # Parameter constraints
         self.minsb_t = tf.constant([0.001 for i in range(self.nmodes)], dtype=tf.float64)
@@ -384,19 +384,19 @@ class femodel_tf_optimizer(object):
          -  `fcore3A`: 3D tensor which implements $( 1/4\epsilon) (\sqrt{1+x_{C}}/(x(1+x)^{3/2})$
          -  `fcore4A`: 3D tensor implements the switching function $S(u) = {\rm Sigmoid}(u/\delta_u)$
          -  `pwca`: final product, 3D tensor of shape $n_{\rm modes} \times N \times n_G$
-        """ 
+        """
         self.xc = tf.math.sqrt(self.uce_t + 1.)
         self.ac = tf.math.sqrt(1.+ self.xc)
         self.yA  = self.sq2*self.sb_t[:,None, None]*self.x_gauss + self.u[:,None] - self.ub_t[:,None,None]
-        self.x1A = tf.pow(self.yA/self.elj_t[:,None,None]  + self.uce_t[:,None,None] + 1.,2) #to make x positive
-        self.xA  = tf.pow( self.x1A , 0.25 )
+        self.unoyA = tf.ones(tf.shape(self.yA), dtype=tf.float64)
+        self.yA_safe = tf.where(self.yA < self.epsu, self.epsu*self.unoyA, self.yA) 
+        self.xA = tf.pow(self.yA_safe/self.elj_t[:,None,None]  + self.uce_t[:,None,None] + 1.,1/2)
         self.bA  = tf.sqrt(1.+ self.xA)
-        self.z1A = tf.tanh( tf.pow(self.ac[:,None,None]/self.bA,12.) )
-        self.zA  = tf.pow( self.z1A, 1./12. ) #caps z to 1
-        self.fcore2A = tf.pow((1.-self.zA+self.eps), self.nl_t[:,None,None]-1.)
-        self.fcore3A = self.ac[:,None,None]/((self.xA+self.eps)*tf.pow(self.bA,3)*4.*self.elj_t[:,None,None])
-        self.fcore4A = tf.sigmoid(self.duinv*self.yA)
-        self.pwca = self.nl_t[:,None,None]*self.fcore2A*self.fcore3A*self.fcore4A
+        self.zA  = self.ac[:,None,None]/self.bA
+        self.fcore2A = tf.pow(1.-self.zA, self.nl_t[:,None,None]-1.)
+        self.fcore3A = self.ac[:,None,None]/(self.xA*tf.pow(self.bA,3)*4.*self.elj_t[:,None,None])
+        self.pwca = tf.where(self.yA < self.epsu, 0*self.unoyA, self.nl_t[:,None,None]*self.fcore2A*self.fcore3A)
+
 
         """
          This performs the convolution by Gauss-Hermite quadrature:
@@ -455,15 +455,14 @@ class femodel_tf_optimizer(object):
         self.xcX = tf.math.sqrt(self.uce_t + 1.)
         self.acX = tf.math.sqrt(1.+ self.xcX)
         self.yX  = self.sq2*self.sb_t[:,None, None]*self.x_gauss + self.xu[:,None] - self.ub_t[:,None,None]
-        self.x1X = tf.pow(self.yX/self.elj_t[:,None,None]  + self.uce_t[:,None,None] + 1.,2) #to make x positive
-        self.xX  = tf.pow( self.x1X , 0.25 )
+        self.unoyX = tf.ones(tf.shape(self.yX), dtype=tf.float64)
+        self.yX_safe = tf.where(self.yX < self.epsu, self.epsu*self.unoyX, self.yX)
+        self.xX = tf.pow(self.yX_safe/self.elj_t[:,None,None]  + self.uce_t[:,None,None] + 1.,1/2)
         self.bX  = tf.sqrt(1.+ self.xX)
-        self.z1X = tf.tanh( tf.pow(self.acX[:,None,None]/self.bX,12.) )
-        self.zX  = tf.pow( self.z1X, 1./12. ) #caps z to 1
-        self.fcore2X = tf.pow((1.-self.zX+self.eps), self.nl_t[:,None,None]-1.)
-        self.fcore3X = self.acX[:,None,None]/((self.xX+self.eps)*tf.pow(self.bX,3)*4.*self.elj_t[:,None,None])
-        self.fcore4X = tf.sigmoid(self.duinv*self.yX)
-        self.pwcax = self.nl_t[:,None,None]*self.fcore2X*self.fcore3X*self.fcore4X
+        self.zX  = self.acX[:,None,None]/self.bX
+        self.fcore2X = tf.pow(1.-self.zX, self.nl_t[:,None,None]-1.)
+        self.fcore3X = self.acX[:,None,None]/(self.xX*tf.pow(self.bX,3)*4.*self.elj_t[:,None,None])
+        self.pwcax = tf.where(self.yX < self.epsu, 0*self.unoyX,  self.nl_t[:,None,None]*self.fcore2X*self.fcore3X)
         
         self.convx = tf.linalg.matvec(self.pwcax,self.w_gauss)/tf.math.sqrt(self.pi)
         self.gauss_bx = tf.math.exp(-tf.pow(self.xu-self.ub_t[:,None],2)/(2.0*tf.pow(self.sb_t[:,None],2)))/(self.sq2pi*self.sb_t[:,None])
