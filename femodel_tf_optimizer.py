@@ -96,14 +96,18 @@ class femodel_tf_optimizer(object):
     Minimum and maximum limits ($\theta_{\rm min}$, $\theta_{\rm max}$) for the parameter $\theta$ translate into
     $$ x_{\rm min} = (\theta_{\rm min} - m)/s$$
     $$ x_{\rm max} = (\theta_{\rm max} - m)/s$$
-    limits for $x$.
+    limits for $x$. only weight parameters don't have limits.
     """
     
-    def consucx(self, ucx): #forces uc/e to be larger than minuce
-        return tf.maximum((self.minuce_t - self.mid_params_uce_t)/self.scale_params_uce_t, ucx)
+    def consucx(self, ucx): 
+        minucex = (self.min_uce_t - self.mid_params_uce_t)/self.scale_params_uce_t
+        maxucex = (self.max_uce_t - self.mid_params_uce_t)/self.scale_params_uce_t
+        return tf.maximum(maxucex, tf.maximum(minucex,ucx))
 
-    def consnlx(self, nlx):#forces nl to be larger than minnl
-        return tf.maximum((self.minnl_t - self.mid_params_nl_t)/self.scale_params_nl_t, nlx)
+    def consnlx(self, nlx):
+        minnlx = (self.min_nl_t - self.mid_params_nl_t)/self.scale_params_nl_t
+        maxnlx = (self.max_nl_t - self.mid_params_nl_t)/self.scale_params_nl_t
+        return tf.maximum(maxnlx, tf.maximum(minnlx, nlx))
 
     def conspbx(self, pbx):#forces pb to be within 0 and 1
         minpbx = (self.minpb_t - self.mid_params_pb_t)/self.scale_params_pb_t
@@ -115,21 +119,32 @@ class femodel_tf_optimizer(object):
     
     def conssbx(self, sbx):
         minsbx = (self.minsb_t - self.mid_params_sb_t)/self.scale_params_sb_t
-        return tf.maximum(minsbx, sbx)
+        maxsbx = (self.max_sb_t - self.mid_params_sb_t)/self.scale_params_sb_t
+        return tf.maximum(maxsbx, tf.maximum(minsbx, sbx))
 
     def conseljx(self, ex):
         mineljx = (self.minelj_t - self.mid_params_elj_t)/self.scale_params_elj_t
-        return tf.maximum(mineljx, ex)
+        maxeljx = (self.max_elj_t - self.mid_params_elj_t)/self.scale_params_elj_t
+        return tf.maximum(maxeljx, tf.maximum(mineljx, ex))
+
+    # Convert list of range elements(min,max) to two lists of each parameter and then create list of tuples
+    def convert_range_list_to_min_max_list(self, range_list):
+        output_min = []
+        output_max = []
+        for index, tuple in enumerate(range_list):
+            output_min.append(tuple[0])
+            output_max.append(tuple[1])
+        return [output_min, output_max]
 
    # Constraint that prevents bound component from not overreaching past the most minimun sample, umin
-    def consubx(self):
-        return self.ub_t-tf.pow(self.sb_t,2)-(3.*self.sb_t)
+    # def consubx(self):
+    #     return self.ub_t-tf.pow(self.sb_t,2)-(3.*self.sb_t)
     
-    def consubx_smaller(self):
-        return self.penalty_force_constant*tf.pow(self.consubx() - self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64), 2)
+    # def consubx_smaller(self):
+    #     return self.penalty_force_constant*tf.pow(self.consubx() - self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64), 2)
 
-    def consubx_larger(self):
-        return tf.zeros([tf.size(self.ubx_t)], dtype=tf.float64)
+    # def consubx_larger(self):
+    #     return tf.zeros([tf.size(self.ubx_t)], dtype=tf.float64)
 
     """
     ### Methods to override in child classes
@@ -183,7 +198,7 @@ class femodel_tf_optimizer(object):
      -  `learning_rate`: the learning rate for the Tensorflow minimizer
     """
     
-    #generate tensorflow graph
+    # Generate tensorflow graph
     def __init__(self, sdm_data, reference_params, temperature, 
                  xparams = None,  scale_params = None, discard = 0, learning_rate = 0.01):
         
@@ -197,7 +212,7 @@ class femodel_tf_optimizer(object):
         nmodes = len(reference_params['ub'])
         self.nmodes = nmodes
         
-        #initial parameters [ub, sb, pb, elj, uce, nl]
+        # Initial parameters [ub, sb, pb, elj, uce, nl]
         reference_ub     = reference_params['ub']
         reference_sb     = reference_params['sb']
         reference_pb     = reference_params['pb']
@@ -213,7 +228,7 @@ class femodel_tf_optimizer(object):
         assert len(reference_nl)  == nmodes, "invalid number of nl parameters, %d instead of %d" % (len(reference_nl), nmodes)
         assert len(reference_wg)  == nmodes, "invalid number of weight parameters, %d instead of %d" % (len(reference_wg), nmodes)
 
-        # scale factor of parameters
+        # Scale factor of parameters
         if scale_params is not None:
             scale_ub     = scale_params['ub']
             scale_sb     = scale_params['sb']
@@ -255,6 +270,44 @@ class femodel_tf_optimizer(object):
         self.scale_params_nl_t  = [tf.constant(p, dtype=tf.float64) for p in scale_nl]
         self.scale_params_wg_t =  [tf.constant(p, dtype=tf.float64) for p in scale_wg]
         
+        # Render limits of parameters to lists of min,max
+        min_ub_list = self.convert_range_list_to_min_max_list(range_params['ub'])[0]
+        max_ub_list = self.convert_range_list_to_min_max_list(range_params['ub'])[1]
+
+        min_sb_list = self.convert_range_list_to_min_max_list(range_params['sb'])[0]
+        max_sb_list = self.convert_range_list_to_min_max_list(range_params['sb'])[1]
+
+        min_elj_list = self.convert_range_list_to_min_max_list(range_params['elj'])[0]
+        max_elj_list = self.convert_range_list_to_min_max_list(range_params['elj'])[1]
+
+        min_uce_list = self.convert_range_list_to_min_max_list(range_params['uce'])[0]
+        max_uce_list = self.convert_range_list_to_min_max_list(range_params['uce'])[1]
+
+        min_nl_list = self.convert_range_list_to_min_max_list(range_params['nl'])[0]
+        max_nl_list = self.convert_range_list_to_min_max_list(range_params['nl'])[1]
+
+        min_pb_list = self.convert_range_list_to_min_max_list(range_params['pb'])[0]
+        max_pb_list = self.convert_range_list_to_min_max_list(range_params['pb'])[1]
+
+        # Render min,max lists to tensors 
+        self.min_ub_t = tf.constant([p for p in (min_ub_list)], dtype=tf.float64)
+        self.max_ub_t = tf.constant([p for p in (max_ub_list)], dtype=tf.float64)
+
+        self.min_sb_t = tf.constant([p for p in (min_sb_list)], dtype=tf.float64)
+        self.max_sb_t = tf.constant([p for p in (max_sb_list)], dtype=tf.float64)
+
+        self.min_pb_t = tf.constant([p for p in (min_pb_list)], dtype=tf.float64)
+        self.max_pb_t = tf.constant([p for p in (max_pb_list)], dtype=tf.float64)
+
+        self.min_uce_t = tf.constant([p for p in (min_uce_list)], dtype=tf.float64)
+        self.max_uce_t = tf.constant([p for p in (max_uce_list)], dtype=tf.float64)
+
+        self.min_elj_t = tf.constant([p for p in (min_elj_list)], dtype=tf.float64)
+        self.max_elj_t = tf.constant([p for p in (max_elj_list)], dtype=tf.float64)
+
+        self.min_nl_t = tf.constant([p for p in (min_nl_list)], dtype=tf.float64)
+        self.max_nl_t = tf.constant([p for p in (max_nl_list)], dtype=tf.float64)
+
         # Miscellania constants
         self.pi = tf.constant(np.pi, dtype=tf.float64)
         self.eps = tf.constant(1.e-6, dtype=tf.float64) #small regularization factor
@@ -262,13 +315,7 @@ class femodel_tf_optimizer(object):
         self.sq2pi = tf.math.sqrt(2.*self.pi)
         self.epsu = tf.constant(1.e-8, dtype=tf.float64) #smallest positive perturbation energy
 
-        # Parameter constraints
-        self.minsb_t = tf.constant([0.001 for i in range(self.nmodes)], dtype=tf.float64)
-        self.minuce_t    = tf.constant([ -1.0 for i in range(self.nmodes)], dtype=tf.float64) #0.0
-        self.minnl_t     = tf.constant([ 1.01 for i in range(self.nmodes)], dtype=tf.float64) #1.0
-        self.minpb_t     = tf.constant([ 0.0 for i in range(self.nmodes)], dtype=tf.float64)
-        self.maxpb_t     = tf.constant([ 1.0 for i in range(self.nmodes)], dtype=tf.float64)
-        self.minelj_t    = tf.constant([ 1.0*beta for i in range(self.nmodes)], dtype=tf.float64)
+        # Parameter constraints for weights
         self.maxweight_t = tf.constant([ 1.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.minweight_t = tf.constant([ 0.0 for i in range(self.nmodes)], dtype=tf.float64)
         self.maxwx_t = (self.maxweight_t - self.mid_params_wg_t)/self.scale_params_wg_t
@@ -344,7 +391,7 @@ class femodel_tf_optimizer(object):
          where we assume that $p_{WCA}(u')$ is set to zero for $u'\lt 0$.
         """
 
-        xg,wg = hermgauss(21)
+        xg,wg = hermgauss(19)
 
         self.n_gauss = tf.constant(xg.size, dtype=tf.int64)
         self.x_gauss = tf.constant(xg, dtype=tf.float64)
@@ -495,11 +542,13 @@ class femodel_tf_optimizer(object):
         self.pkl = self.expl*self.p0sc/self.kl
 
         # Cost penalty associated to umin constraint
-        self.penalty_force_constant = tf.constant(100., dtype=tf.float64)
-        self.pen_cond = tf.math.greater(self.consubx(), self.umin*self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64))
-        self.cost_pen = tf.where(self.pen_cond, self.consubx_larger(), self.consubx_smaller())
+        # self.penalty_force_constant = tf.constant(100., dtype=tf.float64)
+        # self.pen_cond = tf.math.greater(self.consubx(), self.umin*self.umin*tf.ones([tf.size( self.ubx_t)], dtype=tf.float64))
+        # self.cost_pen = tf.where(self.pen_cond, self.consubx_larger(), self.consubx_smaller())
 
-        self.cost = -tf.reduce_sum(tf.math.log(self.pkl)) + tf.reduce_sum(self.cost_pen)
+        # self.cost = -tf.reduce_sum(tf.math.log(self.pkl)) + tf.reduce_sum(self.cost_pen)
+
+        self.cost = -tf.reduce_sum(tf.math.log(self.pkl))
 
         # gradient probes
         self.gubx_t = tf.gradients(self.cost,self.ubx_t)

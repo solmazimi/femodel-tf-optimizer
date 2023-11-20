@@ -154,13 +154,6 @@ if __name__ == '__main__':
                            header=None,names=["cycle", "stateID", "temp", "direct", "Lambda1",
                                               "Lambda2", "alpha", "u0", "w0", "potE", "ebind", "bias"])
 
-    lam_col = []
-    for row in sdm_data_raw['stateID']:
-        lam = 0.05*row
-        if (lam > 0.5):
-            lam = lam - 0.05
-        lam_col.append(lam)
-
     #print(sdm_data_raw.stateID)
 
     sdm_data_raw.insert(2, "Lambda", lam_col)
@@ -178,13 +171,13 @@ if __name__ == '__main__':
     nmodes = 2
 
     reference_params = {}
-    reference_params['ub'] = [ 13.71762778678234*beta, 23.947180253345543*beta ]
-    reference_params['sb'] = [ 3.51531674*beta, 4.040875929237973*beta  ]
+    reference_params['ub'] = [ 13.717*beta, 23.947*beta ]
+    reference_params['sb'] = [ 3.515*beta, 4.041*beta  ]
     reference_params['pb'] = [ (1.-1.e-32), 1.0e-32 ]
     reference_params['elj'] = [ 1.*beta, 1.*beta ]
     reference_params['uce'] = [ 1.0, 0.0 ]
-    reference_params['nl']  = [ 1.5, 6.7047697066672045 ]
-    reference_params['wg'] =  [ 2.36752222e-02, 8.51789027e-05 ]
+    reference_params['nl']  = [ 1.5, 6.7045 ]
+    reference_params['wg'] =  [ 2.368e-02, 8.518e-05 ]
     
     scale_params = {}
     scale_params['ub'] =  [ 1.* beta , 1.* beta ]
@@ -194,10 +187,18 @@ if __name__ == '__main__':
     scale_params['uce'] = [ 0.1, 0.1 ]
     scale_params['nl']  = [ 1.0, 1.0 ]
     scale_params['wg'] =  [ 1.e-5, 1.e-2 ]
+
+    range_params = {}
+    range_params['ub'] = [ (-50*beta, 0.0*beta), (0.0*beta, 50*beta) ]
+    range_params['sb'] = [ (1.9*beta, 6.0*beta), (1.9*beta, 5.5*beta) ]
+    range_params['pb'] = [ (0.0, 1.0), (0.0, 1.0) ]
+    range_params['elj'] = [ (1.0*beta, 1.1*beta), (1.0*beta, 5.0*beta) ]
+    range_params['uce'] = [ (0.0, 1.0), (0.0, 5.0) ]
+    range_params['nl'] = [ (1.5, 3.0), (1.5, 3.0) ]
  
     learning_rate = 0.01
 
-    discard = 491
+    discard = 250
     
     xparams = {}
     if restart:
@@ -360,7 +361,7 @@ if __name__ == '__main__':
                           np.any(np.isnan(gnlx)) or
                           np.any(np.isnan(gwgx)) )
                 
-                if (step % 100) == 0:
+                if (step % nsteps) == 0:
                     print("Gradients:")
                     print(gubx,gsbx,gpbx,gex,gucx,gnlx,gwgx)
                 if notok:
@@ -403,7 +404,7 @@ if __name__ == '__main__':
                     best_nl  = l_nl   
                     best_wg  = l_wg
     
-                if (step % 100) == 0:
+                if (step % nsetps) == 0:
                     print(step, "Cost =", ll)
                     print("Parameters:")
                     print("wg = ", l_wg)

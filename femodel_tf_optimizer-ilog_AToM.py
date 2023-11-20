@@ -160,27 +160,19 @@ if __name__ == '__main__':
     sdm_data_raw = pd.read_csv(datafile, delim_whitespace=True,
                            header=None,names=["cycle", "stateID", "temp", "direct", "Lambda1",
                                               "Lambda2", "alpha", "u0", "w0", "potE", "ebind", "bias"])
-#    sdm_data = sdm_data_raw[sdm_data_raw['Lambda1'] > 0.6 ]
-#    sdm_data = sdm_data_raw[sdm_data_raw['cycle'] % 4 == 0 ]
 
-    lam_col = []
-    for row in sdm_data_raw['stateID']:
-        lam = 0.05*row
-        if (lam > 0.5):
-            lam = lam - 0.05
-        lam_col.append(lam)
 
-    print(sdm_data_raw.stateID)
+    # print(sdm_data_raw.stateID)
 
     sdm_data_raw.insert(2, "Lambda", lam_col)
 
 
-    print(sdm_data_raw)
+    # print(sdm_data_raw)
 
     sdm_data = sdm_data_raw[sdm_data_raw["direct"] == direction]
 
-    print(sdm_data)
-    #sys.exit(0)
+    # print(sdm_data)
+
 
     temperature = 300.0
     kT = 1.986e-3*temperature # [kcal/mol]
@@ -206,6 +198,14 @@ if __name__ == '__main__':
     scale_params['uce'] = [ 0.1, 1.0 ]
     scale_params['nl']  = [ 1.0, 1.0 ]
     scale_params['wg'] =  [ 1.e-7, 1.0 ]
+
+    range_params = {}
+    range_params['ub'] = [ (-50*beta, 0.0*beta), (0.0*beta, 50*beta) ]
+    range_params['sb'] = [ (1.9*beta, 6.0*beta), (1.9*beta, 5.5*beta) ]
+    range_params['pb'] = [ (0.0, 1.0), (0.0, 1.0) ]
+    range_params['elj'] = [ (1.0*beta, 1.1*beta), (1.0*beta, 5.0*beta) ]
+    range_params['uce'] = [ (0.0, 1.0), (0.0, 5.0) ]
+    range_params['nl'] = [ (1.5, 3.0), (1.5, 3.0) ]
  
     learning_rate = 0.01
 
@@ -373,7 +373,7 @@ if __name__ == '__main__':
                           np.any(np.isnan(gnlx)) or
                           np.any(np.isnan(gwgx)) )
                 
-                if (step % 25) == 0:
+                if (step % nsteps) == 0:
                     print("Gradients:")
                     print(gubx,gsbx,gpbx,gex,gucx,gnlx,gwgx)
                 if notok:
@@ -416,7 +416,7 @@ if __name__ == '__main__':
                     best_nl  = l_nl   
                     best_wg  = l_wg
     
-                if (step % 25) == 0:
+                if (step % nsteps) == 0:
                     print(step, "Cost =", ll)
                     print("Parameters:")
                     print("wg = ", l_wg)
