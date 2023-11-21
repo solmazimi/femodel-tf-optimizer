@@ -110,20 +110,20 @@ class femodel_tf_optimizer(object):
         return tf.maximum(maxnlx, tf.maximum(minnlx, nlx))
 
     def conspbx(self, pbx):#forces pb to be within 0 and 1
-        minpbx = (self.minpb_t - self.mid_params_pb_t)/self.scale_params_pb_t
-        maxpbx = (self.maxpb_t - self.mid_params_pb_t)/self.scale_params_pb_t
+        minpbx = (self.min_pb_t - self.mid_params_pb_t)/self.scale_params_pb_t
+        maxpbx = (self.max_pb_t - self.mid_params_pb_t)/self.scale_params_pb_t
         return tf.minimum(maxpbx,tf.maximum(minpbx,pbx))
 
     def consweightx(self, wx):#forces weights to be within 0 and 1
         return tf.minimum(self.maxwx_t,tf.maximum(self.minwx_t,wx))
     
     def conssbx(self, sbx):
-        minsbx = (self.minsb_t - self.mid_params_sb_t)/self.scale_params_sb_t
+        minsbx = (self.min_sb_t - self.mid_params_sb_t)/self.scale_params_sb_t
         maxsbx = (self.max_sb_t - self.mid_params_sb_t)/self.scale_params_sb_t
         return tf.maximum(maxsbx, tf.maximum(minsbx, sbx))
 
     def conseljx(self, ex):
-        mineljx = (self.minelj_t - self.mid_params_elj_t)/self.scale_params_elj_t
+        mineljx = (self.min_elj_t - self.mid_params_elj_t)/self.scale_params_elj_t
         maxeljx = (self.max_elj_t - self.mid_params_elj_t)/self.scale_params_elj_t
         return tf.maximum(maxeljx, tf.maximum(mineljx, ex))
 
@@ -199,7 +199,7 @@ class femodel_tf_optimizer(object):
     """
     
     # Generate tensorflow graph
-    def __init__(self, sdm_data, reference_params, temperature, 
+    def __init__(self, sdm_data, reference_params, temperature, range_params = None,
                  xparams = None,  scale_params = None, discard = 0, learning_rate = 0.01):
         
 
