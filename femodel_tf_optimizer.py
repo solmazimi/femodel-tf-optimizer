@@ -102,12 +102,12 @@ class femodel_tf_optimizer(object):
     def consucx(self, ucx): 
         minucex = (self.min_uce_t - self.mid_params_uce_t)/self.scale_params_uce_t
         maxucex = (self.max_uce_t - self.mid_params_uce_t)/self.scale_params_uce_t
-        return tf.maximum(maxucex, tf.maximum(minucex,ucx))
+        return tf.minimum(maxucex, tf.maximum(minucex,ucx))
 
     def consnlx(self, nlx):
         minnlx = (self.min_nl_t - self.mid_params_nl_t)/self.scale_params_nl_t
         maxnlx = (self.max_nl_t - self.mid_params_nl_t)/self.scale_params_nl_t
-        return tf.maximum(maxnlx, tf.maximum(minnlx, nlx))
+        return tf.minimum(maxnlx, tf.maximum(minnlx, nlx))
 
     def conspbx(self, pbx):#forces pb to be within 0 and 1
         minpbx = (self.min_pb_t - self.mid_params_pb_t)/self.scale_params_pb_t
@@ -120,12 +120,12 @@ class femodel_tf_optimizer(object):
     def conssbx(self, sbx):
         minsbx = (self.min_sb_t - self.mid_params_sb_t)/self.scale_params_sb_t
         maxsbx = (self.max_sb_t - self.mid_params_sb_t)/self.scale_params_sb_t
-        return tf.maximum(maxsbx, tf.maximum(minsbx, sbx))
+        return tf.minimum(maxsbx, tf.maximum(minsbx, sbx))
 
     def conseljx(self, ex):
         mineljx = (self.min_elj_t - self.mid_params_elj_t)/self.scale_params_elj_t
         maxeljx = (self.max_elj_t - self.mid_params_elj_t)/self.scale_params_elj_t
-        return tf.maximum(maxeljx, tf.maximum(mineljx, ex))
+        return tf.minimum(maxeljx, tf.maximum(mineljx, ex))
 
     # Convert list of range elements(min,max) to two lists of each parameter and then create list of tuples
     def convert_range_list_to_min_max_list(self, range_list):
