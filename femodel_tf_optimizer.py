@@ -336,7 +336,7 @@ class femodel_tf_optimizer(object):
             assert len(xparams['nl'])   == nmodes, "invalid number of x nl parameters, %d instead of %d"  % (len(xparams['nl']), nmodes)
             assert len(xparams['wg'])   == nmodes, "invalid number of x weight parameters, %d instead of %d"  % (len(xparams['wg']), nmodes)
             
-            self.ubx_t = tf.Variable(xparams['ub'],  dtype=tf.float64, constraints=self.consubx)
+            self.ubx_t = tf.Variable(xparams['ub'],  dtype=tf.float64, constraint=self.consubx)
             self.sbx_t = tf.Variable(xparams['sb'],  dtype=tf.float64, constraint=self.conssbx)
             self.pbx_t = tf.Variable(xparams['pb'],  dtype=tf.float64, constraint=self.conspbx)
             self.ex_t  = tf.Variable(xparams['elj'], dtype=tf.float64, constraint=self.conseljx)
